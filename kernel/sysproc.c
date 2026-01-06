@@ -107,3 +107,17 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64
+sys_getpinfo(void)
+{
+  uint64 st; // Μεταβλητή για να κρατήσουμε τη διεύθυνση μνήμης του χρήστη
+
+  // Η argaddr(0, &st) παίρνει το 1ο όρισμα που έδωσε ο χρήστης
+  // και το βάζει στη μεταβλητή st. 
+  argaddr(0, &st);
+
+  // Καλούμε τη fill_pstat (που είναι στο proc.c) και της δίνουμε τη διεύθυνση
+  return fill_pstat(st);
+}

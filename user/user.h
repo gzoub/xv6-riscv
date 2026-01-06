@@ -1,6 +1,11 @@
 #define SBRK_ERROR ((char *)-1)
 
+#include "pstat.h"
+
 struct stat;
+
+
+int getpinfo(struct pstat*);
 
 // system calls
 int fork(void);

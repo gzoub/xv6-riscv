@@ -1,3 +1,5 @@
+#include "pstat.h" // pstat is shared with userland
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -91,6 +93,9 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
+  int priority;                // Process priority (for scheduler)
+  int ticks_used;              // Quantums used
+  int ticks_wait;              // Time spent waiting
 
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process

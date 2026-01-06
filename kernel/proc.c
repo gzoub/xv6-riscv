@@ -125,6 +125,10 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  p->priority = 0;  
+  p->ticks_used = 0;
+  p->ticks_wait = 0;
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -657,6 +661,29 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
     memmove(dst, (char*)src, len);
     return 0;
   }
+}
+
+int
+fill_pstat(uint64 addr)
+{
+  struct pstat pst;
+  struct proc *p;
+  int i = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    pst.inuse[i] = (p->state != UNUSED);
+    pst.pid[i] = p->pid;
+    pst.priority[i] = p->priority;
+    pst.ticks[i] = p->ticks_used;
+    pst.state[i] = p->state;
+    release(&p->lock);
+    i++;
+  }
+
+  if(copyout(myproc()->pagetable, addr, (char *)&pst, sizeof(pst)) < 0)
+    return -1;
+  return 0;
 }
 
 // Print a process listing to console.  For debugging.
