@@ -4,9 +4,11 @@
 #include "pstat.h" // Χρειάζεσαι αυτό για να ξέρεις τη struct pstat
 #include "kernel/param.h"
 
+  struct pstat st;
+
+
 int main(int argc, char *argv[])
 {
-  struct pstat st;
   // Κλήση του getpinfo για να γεμίσεις τη δομή pstat
   if(getpinfo(&st) == -1){
     printf("getpinfo failed\n");

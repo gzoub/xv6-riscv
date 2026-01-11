@@ -80,9 +80,23 @@ usertrap(void)
   if(killed(p))
     kexit(-1);
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2){
+    p->ticks_used++;
+
+    int limit;
+    if(p->priority == 0) limit = 4;
+    else if(p->priority == 1) limit = 8;
+    else if(p->priority == 2) limit = 16;
+    else limit = 32; 
+
+    if(p->ticks_used >= limit && p->priority < 3){
+      p->priority++;
+      p->ticks_used = 0;
+    }
+
     yield();
+
+  }
 
   prepare_return();
 

@@ -6,11 +6,14 @@
 
 // NPROC IS MAX NUMBER OF PROCESSES
 struct pstat {
-  int pid[NPROC];     // PID of each process
-  int inuse[NPROC];   // Whether slot is in use (0 or 1)
-  int priority[NPROC]; // Current priority (0-3)
-  int ticks[NPROC];    // How many ticks it has run at current level
-  int state[NPROC];    // State (RUNNABLE, SLEEPING, etc.)
+  int inuse[NPROC];      // Αν χρησιμοποιείται η θυρίδα
+  int pid[NPROC];        // Process ID
+  int ppid[NPROC];       // Parent Process ID (ΝΕΟ)
+  uint64 sz[NPROC];      // Μέγεθος διεργασίας σε bytes (ΝΕΟ)
+  char name[NPROC][16];  // Όνομα διεργασίας (ΝΕΟ)
+  int priority[NPROC];   // Προτεραιότητα
+  int state[NPROC];      // Κατάσταση (RUNNABLE, SLEEPING, κλπ)
+  int ticks[NPROC];      // Ticks που έχει καταναλώσει
 };
 
 #endif // PSTAT_H

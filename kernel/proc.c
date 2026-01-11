@@ -309,6 +309,11 @@ kfork(void)
   return pid;
 }
 
+
+// Pass p's abandoned children to init.
+// Caller must hold wait_lock.
+// Pass p's abandoned children to init.
+// Caller must hold wait_lock.
 // Pass p's abandoned children to init.
 // Caller must hold wait_lock.
 void
@@ -318,7 +323,13 @@ reparent(struct proc *p)
 
   for(pp = proc; pp < &proc[NPROC]; pp++){
     if(pp->parent == p){
+      // Κλειδώνουμε το παιδί για να αλλάξουμε τον πατέρα με ασφάλεια
+      //acquire(&pp->lock);
       pp->parent = initproc;
+      // Ελευθερώνουμε το κλείδωμα ΠΡΙΝ καλέσουμε wakeup
+      //release(&pp->lock);
+      
+      // Τώρα είναι ασφαλές να καλέσουμε wakeup, γιατί δεν κρατάμε το pp->lock
       wakeup(initproc);
     }
   }
@@ -427,7 +438,7 @@ kwait(uint64 addr)
 //    via swtch back to the scheduler.
 void
 scheduler(void)
-{
+    {
   struct proc *p;
   struct cpu *c = mycpu();
 
@@ -441,30 +452,66 @@ scheduler(void)
     intr_on();
     intr_off();
 
-    int found = 0;
+    //update wait times and adjust priorities for runnable processes
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+        // Increment wait time for this process
+        p->ticks_wait++;
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+        // Determine time slice limit based on priority level
+        int limit;
+        if(p->priority == 0) limit = 4;
+        else if(p->priority == 1) limit = 8;
+        else if(p->priority == 2) limit = 16;
+        else limit = 32; 
+
+        // Promote process if it has been waiting too long
+        if(p->ticks_wait >= limit*10 && p->priority > 0){
+          p->priority--;
+          p->ticks_wait = 0;
+        }
       }
       release(&p->lock);
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
-      asm volatile("wfi");
+
+    int found_proc = 0; 
+
+    // Iterate through priority levels
+    for (int prio = 0; prio <= 3; prio++) {
+      
+      // Loop through all processes. 
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        
+        if(p->state == RUNNABLE && p->priority == prio) {
+           p->state = RUNNING;
+           p->ticks_wait = 0; 
+           c->proc = p;
+           
+           swtch(&c->context, &p->context);
+           
+           c->proc = 0; 
+           found_proc = 1;
+           //continue the loop to give others at this priority a turn
+        }
+        release(&p->lock);
+      }
+
+      // If we found any process at this priority level, 
+      // we should not drop down to lower priorities. 
+      // We restart the search to respect strict priority.
+      if(found_proc) {
+         break; 
+      }
+    }
+
+    if(found_proc == 0) {
+       intr_on();
+       asm volatile("wfi");
+    }
     }
   }
-}
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
@@ -669,18 +716,33 @@ fill_pstat(uint64 addr)
   struct pstat pst;
   struct proc *p;
   int i = 0;
-
+  //Επαναλαμβανόμενος βρόχος για όλες τις διεργασίες
   for(p = proc; p < &proc[NPROC]; p++){
     acquire(&p->lock);
+    
     pst.inuse[i] = (p->state != UNUSED);
     pst.pid[i] = p->pid;
+    
+  
+    if (p->parent != 0) {
+      pst.ppid[i] = p->parent->pid;
+    } else {
+      pst.ppid[i] = 0; // Αν δεν έχει πατέρα βάλε 0
+    }
+    
+    pst.sz[i] = p->sz;
+
+    // Αντιγράφουμε το όνομα με ασφάλεια
+    safestrcpy(pst.name[i], p->name, sizeof(pst.name[i]));
+
     pst.priority[i] = p->priority;
     pst.ticks[i] = p->ticks_used;
     pst.state[i] = p->state;
+    
     release(&p->lock);
     i++;
   }
-
+  // Αντιγραφή της δομής pstat στη διεύθυνση μνήμης του χρήστη
   if(copyout(myproc()->pagetable, addr, (char *)&pst, sizeof(pst)) < 0)
     return -1;
   return 0;
