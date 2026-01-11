@@ -323,13 +323,8 @@ reparent(struct proc *p)
 
   for(pp = proc; pp < &proc[NPROC]; pp++){
     if(pp->parent == p){
-      // Κλειδώνουμε το παιδί για να αλλάξουμε τον πατέρα με ασφάλεια
-      //acquire(&pp->lock);
       pp->parent = initproc;
-      // Ελευθερώνουμε το κλείδωμα ΠΡΙΝ καλέσουμε wakeup
-      //release(&pp->lock);
-      
-      // Τώρα είναι ασφαλές να καλέσουμε wakeup, γιατί δεν κρατάμε το pp->lock
+
       wakeup(initproc);
     }
   }
@@ -545,7 +540,24 @@ void
 yield(void)
 {
   struct proc *p = myproc();
+  if(p == 0)
+    return;
   acquire(&p->lock);
+
+  // update ticks used while running, and demote priority if limit reached
+  p->ticks_used++;
+
+  int limit;
+  if(p->priority == 0) limit = 4;
+  else if(p->priority == 1) limit = 8;
+  else if(p->priority == 2) limit = 16;
+  else limit = 32;
+
+  if(p->ticks_used >= limit && p->priority < 3){
+    p->priority++;
+    p->ticks_used = 0;
+  }
+
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
